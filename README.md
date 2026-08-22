@@ -63,7 +63,7 @@ This version is suitable for a regular single download without multi-audio or su
 - determines the original language from YouTube metadata;
 - saves original-language subtitles as a separate `.srt`, preferring manual subtitles and using automatic captions as a fallback;
 - attempts to save a separate Russian `.srt` when `-AddRusub` is enabled;
-- uses `player_client=android_vr` and the local `bgutil` HTTP PO Token Provider for Russian subtitles;
+- uses `player_client=web`, `--ignore-no-formats-error`, and the local `bgutil` HTTP PO Token Provider for one Russian subtitle attempt; verbose diagnostics are optional;
 - starts `bgutil` asynchronously, waits for it to become ready, and stops only a process that it started itself;
 - treats missing or failed subtitles as non-fatal to the video download.
 
@@ -80,12 +80,27 @@ Subtitles are not embedded in the final MP4.
 - Original-language subtitles and the Russian audio track are independent of this parameter.
 - If the original language is already Russian, no duplicate Russian `.srt` is created.
 
+The `$RusubVerboseDiag` switch parameter is also disabled by default. It adds `yt-dlp --verbose` only to the Russian subtitle request and does not enable Russian subtitles by itself.
+
+| Parameters | Behavior |
+|---|---|
+| none | Russian subtitles are disabled |
+| `-AddRusub` | One Russian request through `player_client=web`, with normal output |
+| `-AddRusub -RusubVerboseDiag` | One Russian request through `player_client=web`, with verbose diagnostics |
+| `-RusubVerboseDiag` only | Diagnostics have no effect because the Russian branch is disabled |
+
 Russian translated captions are disabled by default because the requests are unstable: YouTube frequently responds with `HTTP 429 Too Many Requests`, after which a delayed retry or script restart may not restore downloading. Therefore, `-AddRusub` is an explicit opt-in option, while the main workflow remains operational without Russian subtitles.
 
 Run with Russian subtitles:
 
 ```powershell
 .\download_yt-dlp_subs_v7.ps1 -AddRusub -Url "https://youtube.com/..."
+```
+
+Diagnostic run with Russian subtitles:
+
+```powershell
+.\download_yt-dlp_subs_v7.ps1 -AddRusub -RusubVerboseDiag -Url "https://youtube.com/..."
 ```
 
 Run without Russian subtitles:
@@ -203,7 +218,7 @@ When a Russian audio track is added to the video, the base name of the external 
 
 - If no suitable Russian audio track is available, only Original is retained.
 - Russian translated captions may temporarily fail with YouTube errors, including `HTTP 429 Too Many Requests`.
-- The PowerShell workflow makes controlled subtitle retry attempts; a subtitle failure does not remove a successfully downloaded video.
+- The PowerShell workflow retains controlled retries for original-language subtitles, but makes only one diagnostic Russian subtitle attempt; a subtitle failure does not remove a successfully downloaded video.
 - For `bgutil` problems, check Node.js, `server\build\main.js`, the installed plugin, and the `bgutil-provider.stdout.log` and `bgutil-provider.stderr.log` files.
 - After updating `yt-dlp` or `bgutil`, verify the available formats and subtitle behavior again.
 

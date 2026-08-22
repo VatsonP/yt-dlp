@@ -1,7 +1,8 @@
 ﻿param(
     [Parameter(Position = 0)]
     [string]$Url,
-    [switch]$AddRusub = $false
+    [switch]$AddRusub = $false,
+    [switch]$RusubVerboseDiag = $false
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,7 +24,8 @@ $ErrorActionPreference = 'Stop'
 #   - Original-language subtitle: manual first, automatic captions as fallback
 #   - Russian subtitle (only with -AddRusub and when original language is not Russian):
 #       manual first, automatic/translated caption as fallback
-#       requested immediately with YouTube player_client=android_vr
+#       requested once with YouTube player_client=web
+#       verbose diagnostics are enabled only with -RusubVerboseDiag
 #   - Russian subtitles use the local bgutil HTTP PO Token Provider
 #   - If the provider is unavailable, Russian subtitles are skipped gracefully
 #   - Missing subtitles do not fail the video download
@@ -70,13 +72,14 @@ $CommonYtDlpArgs = @(
 # Original subtitles use the default YouTube client.
 # bgutil is started asynchronously near the beginning of Process-Video.
 # Before Russian subtitles, the script waits only if the provider is not ready yet.
-# Russian subtitles use android_vr + local bgutil HTTP PO Token Provider.
-# Only one controlled retry is allowed: attempt 1 -> wait 90 sec -> attempt 2.
-$SubtitleInterLanguageDelaySeconds = 30
+# Russian subtitles use web + local bgutil HTTP PO Token Provider.
+# The Russian diagnostic request is attempted only once; original subtitles keep
+# the general retry policy below.
+$SubtitleInterLanguageDelaySeconds = 10
 $SubtitleRequestSleepSeconds = 2
 $SubtitleMaxAttempts = 2
-$SubtitleRetryDelaySeconds = @(90)
-$RussianSubtitlePlayerClient = 'android_vr'
+$SubtitleRetryDelaySeconds = @(30)
+$RussianSubtitlePlayerClient = 'web'
 
 
 function Test-BgutilProvider {
@@ -482,10 +485,15 @@ function Download-SubtitleSrt {
         [Parameter(Mandatory = $true)]$Track,
         [Parameter(Mandatory = $true)][string]$TargetPath,
         [Parameter(Mandatory = $true)][string]$TempRoot,
-        [string]$PlayerClient = ''
+        [string]$PlayerClient = '',
+        [ValidateRange(0, 100)][int]$MaxAttempts = 0,
+        [switch]$IgnoreNoFormatsError,
+        [switch]$VerboseDiagnostics
     )
 
-    for ($attempt = 1; $attempt -le $SubtitleMaxAttempts; $attempt++) {
+    $attemptLimit = if ($MaxAttempts -gt 0) { $MaxAttempts } else { $SubtitleMaxAttempts }
+
+    for ($attempt = 1; $attempt -le $attemptLimit; $attempt++) {
         $subTemp = Join-Path $TempRoot ('sub-' + [guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $subTemp | Out-Null
 
@@ -493,15 +501,15 @@ function Download-SubtitleSrt {
             if ($attempt -gt 1) {
                 $delayIndex = [Math]::Min($attempt - 2, $SubtitleRetryDelaySeconds.Count - 1)
                 $delay = [int]$SubtitleRetryDelaySeconds[$delayIndex]
-                Write-Host ("[WARN] Subtitle download attempt {0}/{1} failed. Waiting {2} seconds before retry..." -f ($attempt - 1), $SubtitleMaxAttempts, $delay)
+                Write-Host ("[WARN] Subtitle download attempt {0}/{1} failed. Waiting {2} seconds before retry..." -f ($attempt - 1), $attemptLimit, $delay)
                 Start-Sleep -Seconds $delay
             }
 
             if ([string]::IsNullOrWhiteSpace($PlayerClient)) {
-                Write-Host ("[INFO] Subtitle download attempt {0}/{1} (default YouTube client)..." -f $attempt, $SubtitleMaxAttempts)
+                Write-Host ("[INFO] Subtitle download attempt {0}/{1} (default YouTube client)..." -f $attempt, $attemptLimit)
             }
             else {
-                Write-Host ("[INFO] Subtitle download attempt {0}/{1} (player_client={2})..." -f $attempt, $SubtitleMaxAttempts, $PlayerClient)
+                Write-Host ("[INFO] Subtitle download attempt {0}/{1} (player_client={2})..." -f $attempt, $attemptLimit, $PlayerClient)
             }
 
             $args = @($CommonYtDlpArgs) + @(
@@ -515,6 +523,14 @@ function Download-SubtitleSrt {
                 '--fragment-retries', '0',
                 '-o', (Join-Path $subTemp '%(title)s [%(id)s].%(ext)s')
             )
+
+            if ($VerboseDiagnostics) {
+                $args += '--verbose'
+            }
+
+            if ($IgnoreNoFormatsError) {
+                $args += '--ignore-no-formats-error'
+            }
 
             if (-not [string]::IsNullOrWhiteSpace($PlayerClient)) {
                 $args += @('--extractor-args', ('youtube:player_client={0}' -f $PlayerClient))
@@ -551,7 +567,7 @@ function Download-SubtitleSrt {
                 }
             }
 
-            Write-Host ("[WARN] Subtitle attempt {0}/{1} did not produce a valid SRT file." -f $attempt, $SubtitleMaxAttempts)
+            Write-Host ("[WARN] Subtitle attempt {0}/{1} did not produce a valid SRT file." -f $attempt, $attemptLimit)
         }
         finally {
             Remove-Item -LiteralPath $subTemp -Recurse -Force -ErrorAction SilentlyContinue
@@ -758,7 +774,9 @@ function Process-Video {
                     Write-Host ("[INFO] Russian subtitle client: {0}" -f $RussianSubtitlePlayerClient)
                     Write-Host '[INFO] PO Token Provider: bgutil HTTP (127.0.0.1:4416)'
 
-                    if (Download-SubtitleSrt -VideoUrl $VideoUrl -Track $ruTrack -TargetPath $ruTarget -TempRoot $TempRoot -PlayerClient $RussianSubtitlePlayerClient) {
+                    if (Download-SubtitleSrt -VideoUrl $VideoUrl -Track $ruTrack -TargetPath $ruTarget -TempRoot $TempRoot `
+                        -PlayerClient $RussianSubtitlePlayerClient -MaxAttempts 1 `
+                        -IgnoreNoFormatsError -VerboseDiagnostics:$RusubVerboseDiag) {
                         Write-Host ("[DONE] Saved subtitle: {0}" -f $ruTarget)
                     }
                     else {
@@ -812,6 +830,7 @@ do {
     Write-Host ("[INFO] Preferred folder: {0}" -f $PreferredOutput)
     Write-Host ("[INFO] Output folder   : {0}" -f (Get-OutputDirectory))
     Write-Host ("[INFO] Russian subtitles: {0}" -f $(if ($AddRusub) { 'enabled' } else { 'disabled' }))
+    Write-Host ("[INFO] RU verbose diagnostics: {0}" -f $(if ($RusubVerboseDiag) { 'enabled' } else { 'disabled' }))
     Write-Host ("[INFO] RU subtitle client: {0}" -f $RussianSubtitlePlayerClient)
     Write-Host ("[INFO] EN->RU safety delay: {0} sec" -f $SubtitleInterLanguageDelaySeconds)
     Write-Host ("[INFO] RU retry delays   : {0} sec" -f ($SubtitleRetryDelaySeconds -join ' / '))
