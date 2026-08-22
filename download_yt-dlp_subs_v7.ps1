@@ -1,6 +1,7 @@
 ﻿param(
     [Parameter(Position = 0)]
-    [string]$Url
+    [string]$Url,
+    [switch]$AddRusub = $false
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 # Subtitle policy:
 #   - External .srt files only (not embedded)
 #   - Original-language subtitle: manual first, automatic captions as fallback
-#   - Russian subtitle (only when original language is not Russian):
+#   - Russian subtitle (only with -AddRusub and when original language is not Russian):
 #       manual first, automatic/translated caption as fallback
 #       requested immediately with YouTube player_client=android_vr
 #   - Russian subtitles use the local bgutil HTTP PO Token Provider
@@ -660,13 +661,15 @@ function Process-Video {
         [Parameter(Mandatory = $true)][string]$VideoUrl
     )
 
-    # Start bgutil early and let it warm up while the main media workflow runs.
-    # This call is intentionally non-blocking.
-    $bgutilStartRequested = Start-BgutilProviderIfNeeded
-    if (-not $bgutilStartRequested) {
-        Write-Host '[WARN] bgutil could not be started early. Video and original subtitles will continue.'
+    if ($AddRusub) {
+        # Start bgutil early and let it warm up while the main media workflow runs.
+        # This call is intentionally non-blocking.
+        $bgutilStartRequested = Start-BgutilProviderIfNeeded
+        if (-not $bgutilStartRequested) {
+            Write-Host '[WARN] bgutil could not be started early. Video and original subtitles will continue.'
+        }
+        Write-Host ''
     }
-    Write-Host ''
 
     $OutputDir = Get-OutputDirectory
     $TempRoot = Join-Path $env:TEMP ('yt-dlp-subs-' + [guid]::NewGuid().ToString('N'))
@@ -732,9 +735,10 @@ function Process-Video {
             Write-Host '[WARN] Original-language subtitle was skipped because the original language is unknown.'
         }
 
-        # Russian subtitle only when the source language is not Russian.
-        # v6 requires the local bgutil HTTP PO Token Provider for this branch.
-        if (-not $isOriginalRussian) {
+        if ($AddRusub) {
+            # Russian subtitle only when the source language is not Russian.
+            # v6 requires the local bgutil HTTP PO Token Provider for this branch.
+            if (-not $isOriginalRussian) {
             $poTokenProviderAvailable = Wait-BgutilProviderReady
 
             if (-not $poTokenProviderAvailable) {
@@ -765,9 +769,13 @@ function Process-Video {
                     Write-Host '[WARN] No Russian subtitle/caption was found.'
                 }
             }
+            }
+            else {
+                Write-Host '[INFO] Russian subtitle is already the original-language subtitle; no duplicate file is created.'
+            }
         }
         else {
-            Write-Host '[INFO] Russian subtitle is already the original-language subtitle; no duplicate file is created.'
+            Write-Host '[INFO] Russian subtitles are disabled. Use -AddRusub to enable them.'
         }
 
         Write-Host ''
@@ -803,6 +811,7 @@ do {
     Write-Host ("[INFO] Working folder  : {0}" -f $WorkDir)
     Write-Host ("[INFO] Preferred folder: {0}" -f $PreferredOutput)
     Write-Host ("[INFO] Output folder   : {0}" -f (Get-OutputDirectory))
+    Write-Host ("[INFO] Russian subtitles: {0}" -f $(if ($AddRusub) { 'enabled' } else { 'disabled' }))
     Write-Host ("[INFO] RU subtitle client: {0}" -f $RussianSubtitlePlayerClient)
     Write-Host ("[INFO] EN->RU safety delay: {0} sec" -f $SubtitleInterLanguageDelaySeconds)
     Write-Host ("[INFO] RU retry delays   : {0} sec" -f ($SubtitleRetryDelaySeconds -join ' / '))

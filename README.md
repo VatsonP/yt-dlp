@@ -1,135 +1,210 @@
-# YouTube yt-dlp (Multi-Audio & Subtitles) - Workflow scripts for Windows
+# YouTube yt-dlp (Multi-Audio & Subtitles) — Windows Workflow Scripts
 
-> A complete, production-ready workflow for downloading YouTube videos with:
-> - **1080p** video in `AVC1/H.264 + M4A/AAC`;
-> - **Multiple audio tracks** (Original & Russian);
-> - **Subtitles** (original + translated Russian captions as external `.srt`);
-> - **PO Token Provider** via `bgutil-ytdlp-pot-provider`;
-> - **Organized output** to `D:\TempD` (with backups in `D:\Trainings\yt-dlp`).
+A set of local scripts for downloading videos from YouTube with `yt-dlp` and `ffmpeg`:
+
+- video up to `1080p`, preferring `AVC1/H.264 + M4A/AAC`;
+- the original audio track;
+- an additional Russian audio track when available and the original language is not Russian;
+- external `.srt` subtitles in the advanced PowerShell workflow.
+
+> YouTube extractor behavior, formats, `player_client`, PO Token enforcement, and translated captions depend on the versions of `yt-dlp`, its plugins, and YouTube itself.
 
 ---
 
-## Quick Overview
+## Scripts
 
-The repository contains two core scripts:
+| Script | Container | Audio | Subtitles | `bgutil` |
+|---|---|---|---|---|
+| `download_yt-dlp_v2.bat` | Determined by the selected formats and `yt-dlp` merge behavior | One selected audio track | None | Neither starts nor explicitly uses it |
+| `download_yt-dlp_ru_v2_mp4.bat` | MP4 | Original + Russian, when available | None | Neither starts nor explicitly uses it |
+| `download_yt-dlp_ru_v2_mkv.bat` | MKV when Russian is added; MP4 in the fallback branch without a separate Russian track | Original + Russian, when available | None | Neither starts nor explicitly uses it |
+| `download_yt-dlp_subs_v7.ps1` | MP4 | Original + Russian, when available | External Original `.srt`; external Russian `.srt` only with `-AddRusub` | Started automatically only with `-AddRusub` |
 
-| Script | Purpose |
-|--------|---------|
-| `download_yt-dlp_ru_v2_mkv.bat` | Simple batch downloader for **MKV + Original audio + Russian audio**, using the PO Token infrastructure. |
-| `download_yt-dlp_ru_v2_mp4.bat` | Simple batch downloader for **MP4 + Original audio + Russian audio**, using the PO Token infrastructure. |
-| `download_yt-dlp_subs_v7.ps1` | Advanced PowerShell orchestration layer: **MP4** video + multi-audio + external SRT subtitles + HTTP PO Token Provider via `bgutil`. |
----
-
-## File Structure
-
-```
-.
-+-- download_yt-dlp_ru_v2_mkv.bat                 # Batch entrypoint (for .mkv output)
-+-- download_yt-dlp_ru_v2_mp4.bat                 # Batch entrypoint (for .mp4 output)
-+-- download_yt-dlp_subs_v7.ps1                   # PowerShell orchestration
-+-- info/                                         # Obsidian notes with internal docs
-�   YouTube yt-dlp (multi-audio & subtitles)*.md  # Full configuration & troubleshooting notes
-L-- README.md                                     # This file
-```
+All four scripts operate independently: the PowerShell script does not invoke the BAT files.
 
 ---
 
 ## Features
 
-- Downloads **1080p** video with **AVC1/H.264** codec and **M4A/AAC** audio.
-- Merges **Original** and **Russian** audio tracks into a single MP4.
-- Extracts **Original** subtitles as `.srt` (embedded in the container).
-- Attempts to download **translated Russian captions** as external `.srt`.
-- Uses the **`bgutil` HTTP PO Token Provider** to avoid `HTTP 429 Too Many Requests`.
-- All output is saved to `D:\TempD`; a copy is also stored in `D:\Trainings\yt-dlp`.
-- Verified to work with modern YouTube extractors and `yt-dlp` plugins.
+### General Video and Audio Policy
+
+- The maximum resolution is `1080p`.
+- `AVC1/H.264` video and `M4A/AAC` audio are preferred.
+- The original audio track is always preserved.
+- If the original language is not Russian and a suitable Russian track is found, it is downloaded separately and added with `ffmpeg` without transcoding (`-c copy`).
+- Original is marked as the default audio track; Russian is added as a selectable track.
+- Playlists are disabled with `--no-playlist`.
+
+Primary format selector:
+
+```text
+bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best
+```
+
+### Original Base Version
+
+`download_yt-dlp_v2.bat` is a simple interactive downloader for YouTube, Kinescope, and other sites supported by `yt-dlp`.
+
+- It requests one URL in an interactive loop.
+- It downloads video up to `1080p` with the same `AVC1/H.264 + M4A/AAC` selector.
+- It uses one audio track selected by `yt-dlp` as `bestaudio[ext=m4a]`.
+- It does not read metadata to determine languages.
+- It does not find or add a separate Russian audio track.
+- It does not download subtitles.
+- It neither starts nor explicitly uses `bgutil`.
+- It does not enforce the final container with `--merge-output-format`, so the output extension depends on the selected formats and `yt-dlp` merge behavior.
+
+This version is suitable for a regular single download without multi-audio or subtitle orchestration.
+
+### PowerShell Workflow with Subtitles
+
+`download_yt-dlp_subs_v7.ps1` additionally:
+
+- determines the original language from YouTube metadata;
+- saves original-language subtitles as a separate `.srt`, preferring manual subtitles and using automatic captions as a fallback;
+- attempts to save a separate Russian `.srt` when `-AddRusub` is enabled;
+- uses `player_client=android_vr` and the local `bgutil` HTTP PO Token Provider for Russian subtitles;
+- starts `bgutil` asynchronously, waits for it to become ready, and stops only a process that it started itself;
+- treats missing or failed subtitles as non-fatal to the video download.
+
+Subtitles are not embedded in the final MP4.
+
+---
+
+## The `-AddRusub` Option
+
+`download_yt-dlp_subs_v7.ps1` provides the `$AddRusub` switch parameter, which is disabled by default.
+
+- Without `-AddRusub`, Russian subtitles are disabled and `bgutil` is not started.
+- With `-AddRusub`, the Russian `.srt` generation branch is enabled.
+- Original-language subtitles and the Russian audio track are independent of this parameter.
+- If the original language is already Russian, no duplicate Russian `.srt` is created.
+
+Russian translated captions are disabled by default because the requests are unstable: YouTube frequently responds with `HTTP 429 Too Many Requests`, after which a delayed retry or script restart may not restore downloading. Therefore, `-AddRusub` is an explicit opt-in option, while the main workflow remains operational without Russian subtitles.
+
+Run with Russian subtitles:
+
+```powershell
+.\download_yt-dlp_subs_v7.ps1 -AddRusub -Url "https://youtube.com/..."
+```
+
+Run without Russian subtitles:
+
+```powershell
+.\download_yt-dlp_subs_v7.ps1 -Url "https://youtube.com/..."
+```
+
+Interactive mode without `-Url` is also supported:
+
+```powershell
+.\download_yt-dlp_subs_v7.ps1 -AddRusub
+```
+
+If the PowerShell execution policy blocks local scripts:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\download_yt-dlp_subs_v7.ps1" -AddRusub -Url "https://youtube.com/..."
+```
+
+---
+
+## Quick Start for BAT Scripts
+
+The BAT files run interactively and request a URL after launch:
+
+```cmd
+download_yt-dlp_v2.bat
+```
+
+or:
+
+```cmd
+download_yt-dlp_ru_v2_mp4.bat
+```
+
+or:
+
+```cmd
+download_yt-dlp_ru_v2_mkv.bat
+```
+
+`download_yt-dlp_ru_v2_mkv.bat` creates an MKV when it adds a separate Russian audio track. If a separate Russian track is not required or cannot be found, the current fallback branch downloads an MP4.
 
 ---
 
 ## Requirements
 
-- **Windows OS** (tested on Windows 10/11)
-- **`yt-dlp.exe`** � standalone Windows executable
-- **`ffmpeg.exe`** � for merging/remuxing video, audio, and subtitles
-- **`bgutil-ytdlp-pot-provider`** � HTTP PO Token Provider running on `127.0.0.1:4416`
+For all workflows:
 
-> **Important**: The provider must be running inside script `download_yt-dlp_subs_v7.ps1`.  
-> You can verify it with:  
-> ```powershell
-> curl http://127.0.0.1:4416/ping
-> ```
+- Windows;
+- `yt-dlp.exe` in `D:\Trainings\yt-dlp`;
+- `ffmpeg.exe` in `D:\Trainings\yt-dlp`;
+- Node.js in `PATH`, because the scripts pass `--js-runtimes node`.
 
----
+Additionally, for Russian subtitles through `-AddRusub`:
 
-## Quick Start
+- a built `bgutil-ytdlp-pot-provider` server at `D:\Trainings\yt-dlp\bgutil-ytdlp-pot-provider\server\build\main.js`;
+- a compatible `bgutil` plugin for `yt-dlp`.
 
-1. **Place the scripts** in your working directory.
-2. **Ensure `yt-dlp.exe` and `ffmpeg.exe`** are in your `PATH` or in the same folder.
-3. **Start the `bgutil` HTTP PO Token Provider** (on `127.0.0.1:4416`).
-4. **Run one of the scripts:**
+The provider does not need to be started manually before running the PowerShell script. If a compatible provider is already available on a loopback address and port `4416`, the script uses it and does not stop it when processing finishes.
 
-   ```cmd
-   download_yt-dlp_ru_v2_mkv.bat
-   ```
-   or
-   ```cmd
-   download_yt-dlp_ru_v2_mp4.bat
-   ```   
-   or
-   ```powershell
-   powershell.exe -ExecutionPolicy Bypass -File "<path_to_directory>\download_yt-dlp_subs_v7.ps1"
-   ```
-5. Past <YouTube-URL>
-6. **Check the output** in `D:\TempD` (and `D:\Trainings\yt-dlp` for backups).
+Check an already running provider:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:4416/ping
+```
 
 ---
 
-## Technical Details
+## Output Files
 
-| Component | Detail |
-|-----------|--------|
-| **Video Format** | `bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best` |
-| **Audio Tracks** | Original + Russian (merged via `ffmpeg`) |
-| **Subtitles** | Original embedded `.srt` + translated Russian external `.srt` |
-| **PO Token Provider** | HTTP endpoint `http://127.0.0.1:4416`, accessed via `--extractor-args "youtube:player-client=android,web;po_token_provider=bgutil:http"` |
-| **Output Directory** | `D:\TempD` (primary), `D:\Trainings\yt-dlp` (backup) |
-| **Orchestration** | `PowerShell > cmd.exe > yt-dlp > PowerShell` (for retry logic and subtitle handling) |
+The scripts select one output directory:
 
----
+1. `D:\TempD`, if the directory exists;
+2. otherwise, `D:\Trainings\yt-dlp`.
 
-## Known Limitations
+No automatic backup copy is created in the other directory.
 
-- **Translated Russian captions** may fail due to `HTTP 429 Too Many Requests` if the PO Token Provider is not fully warmed up.
-- The workflow is **version-sensitive**: YouTube extractor, `player_client`, PO Token enforcement, format IDs, and caption endpoints change frequently.
-- Always keep `yt-dlp` and `bgutil` updated to the latest versions.
+Example file names:
 
----
+```text
+Title [video-id].mp4
+Title [video-id] [Original+RUS].mp4
+Title [video-id] [Original+RUS].mkv
+Title [video-id].en.srt
+Title [video-id].ru.srt
+```
 
-## Documentation
-
-For detailed configuration, troubleshooting, and version-specific notes, see the files in the `info/` folder.  
-They contain:
-
-- Full `ffmpeg` parameters
-- PO Token provider setup
-- Multi-audio embedding logic
-- Obsidian-style markdown notes
+When a Russian audio track is added to the video, the base name of the external subtitles also includes `[Original+RUS]`.
 
 ---
 
-## Verified On
+## Project Structure
 
-- `yt-dlp` latest stable Windows build
-- `ffmpeg` latest release
-- `bgutil-ytdlp-pot-provider` running locally
-- YouTube extractor with `android` / `web` player clients
+```text
+.
+|-- download_yt-dlp_v2.bat
+|-- download_yt-dlp_ru_v2_mkv.bat
+|-- download_yt-dlp_ru_v2_mp4.bat
+|-- download_yt-dlp_subs_v7.ps1
+|-- yt-dlp.exe
+|-- ffmpeg.exe
+|-- bgutil-ytdlp-pot-provider/
+|-- yt-dlp-plugins/
+|-- info/
+|   `-- YouTube yt-dlp (multi-audio & subtitles) - конспект и практический runbook.md
+|-- README_RU.md
+`-- README.md
+```
 
 ---
 
-## Contributing
+## Limitations and Troubleshooting
 
-Found a bug or have an improvement? Feel free to open an issue or submit a pull request.  
-Please keep the **version-sensitive** nature in mind when updating dependencies or extraction logic.
+- If no suitable Russian audio track is available, only Original is retained.
+- Russian translated captions may temporarily fail with YouTube errors, including `HTTP 429 Too Many Requests`.
+- The PowerShell workflow makes controlled subtitle retry attempts; a subtitle failure does not remove a successfully downloaded video.
+- For `bgutil` problems, check Node.js, `server\build\main.js`, the installed plugin, and the `bgutil-provider.stdout.log` and `bgutil-provider.stderr.log` files.
+- After updating `yt-dlp` or `bgutil`, verify the available formats and subtitle behavior again.
 
----
-
+The `info/` directory contains a detailed runbook for setup and troubleshooting.
