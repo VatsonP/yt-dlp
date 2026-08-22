@@ -1,0 +1,79 @@
+# Secrets and machine-local configuration
+.env
+.env.*
+!.env.example
+!.env.example.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials/
+secrets/
+tokens/
+
+# Python environments, caches, and coverage
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.uv-cache/
+.venv/
+venv/
+env/
+.tmp-tests/
+.coverage
+.coverage.*
+htmlcov/
+
+# JavaScript and general dependencies
+node_modules/
+
+# Build, package, and test output
+build/
+dist/
+site/
+coverage/
+test-results/
+*.egg-info/
+*.junit.xml
+
+# Runtime data and local operations output
+/volumes/
+/runtime-data/
+/backups/
+/logs/
+*.log
+*.dump
+*.sql.gz
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+.directory
+
+# Additional utils directories
+_LechYTDLP/
+bgutil-ytdlp-pot-provider/
+
+# User-owned temp files
+temp/
+
+# Exe fiels
+*.exe

@@ -1,0 +1,63 @@
+
+Custom Non-Commercial Software License
+Copyright (c) 2025 Vadim P.
+Last updated: August 22, 2026
+
+1. Permitted Uses
+
+You are granted a limited, non-exclusive, non-transferable license to:
+
+- Use the software for personal, educational, or research purposes.
+- Modify the source code for your own non-commercial needs.
+- Distribute original or modified versions of the software, provided that:
+  - No part of it is sold or monetized.
+  - The license and attribution are preserved.
+  - The distribution is not part of a commercial product or service, including those offered for a fee, behind a paywall, or with premium features.
+
+You may also:
+
+- Host the software or its derivatives on public or private repositories, as long as access is free and consistent with this license.
+
+2. Restrictions
+
+You are prohibited from:
+
+- Using the software or any part of it in a commercial context. This includes but is not limited to:
+  - Selling or licensing the software.
+  - Offering the software or its derivatives as part of a paid product or service.
+  - Using the software to provide paid consulting, hosting, or Software-as-a-Service (SaaS).
+  - Including the software in a product that promotes or facilitates commercial transactions, advertising, or marketing.
+
+- Rebranding or obfuscating the software in a way that hides the original author or misrepresents authorship.
+
+- Removing or altering this license or attribution notices in any distributed version, modified or not.
+
+- Using the software in ways that violate applicable laws or promote unlawful activities.
+
+3. Attribution Requirements
+
+When sharing or redistributing the software, you must:
+
+- Include the full copyright notice and this license in all copies.
+- Provide visible and clear credit to the original author:
+  - By name: Vadim P. (Vatson)
+  - And optionally, a link to the GitHub repository or profile.
+
+For web-based or UI-visible implementations, attribution should be accessible in an “About”, “Credits”, or equivalent section.
+
+4. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT ANY WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. THIS INCLUDES BUT IS NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+5. Termination Clause
+
+This license is automatically terminated if:
+
+- You violate any of the terms above.
+- You use the software in any commercial context without prior written permission from the author.
+
+Upon termination, you must cease all use, distribution, and derivative development of the software and destroy all copies in your possession.
+
+6. Optional Commercial Licensing
+
+If you wish to use this software in a commercial context, you must request and obtain a separate commercial license by contacting the author.
